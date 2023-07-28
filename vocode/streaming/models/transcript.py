@@ -99,20 +99,18 @@ class Transcript(BaseModel):
             sender=Sender.BOT,
             conversation_id=conversation_id,
         )
-    
-    def add_vector_db_results(self, text: str, conversation_id: str):
-        self.add_message(
-            text=text,
-            sender=Sender.VECTOR_DB,
-            conversation_id=conversation_id,
-        )
+
+    def get_last_user_message(self):
+        for idx, message in enumerate(self.event_logs[::-1]):
+            if message.sender == Sender.HUMAN:
+                return -1 * (idx + 1), message.to_string()
 
     def add_action_start_log(self, action_input: ActionInput, conversation_id: str):
         timestamp = time.time()
         self.event_logs.append(
             ActionStart(
                 action_input=action_input,
-                action_type=action_input.action_type,
+                action_type=action_input.action_config.type,
                 timestamp=timestamp,
             )
         )
@@ -124,7 +122,12 @@ class Transcript(BaseModel):
                 )
             )
 
-    def add_action_finish_log(self, action_input: ActionInput, action_output: ActionOutput, conversation_id: str):
+    def add_action_finish_log(
+        self,
+        action_input: ActionInput,
+        action_output: ActionOutput,
+        conversation_id: str,
+    ):
         timestamp = time.time()
         self.event_logs.append(
             ActionFinish(
