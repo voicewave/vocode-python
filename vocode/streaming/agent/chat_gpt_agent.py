@@ -166,7 +166,10 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
             chat_parameters = self.get_chat_parameters()
         chat_parameters["stream"] = True
         stream = await openai.ChatCompletion.acreate(**chat_parameters)
+        self.logger.debug("LLM streaming response")
         async for message in collate_response_async(
-            openai_get_tokens(stream), get_functions=True
+            openai_get_tokens(stream, logger=self.logger),
+            get_functions=True,
+            logger=self.logger,
         ):
             yield message

@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 from typing import (
     Dict,
@@ -29,6 +31,7 @@ async def collate_response_async(
     gen: AsyncIterable[Union[str, FunctionFragment]],
     sentence_endings: List[str] = SENTENCE_ENDINGS,
     get_functions: Literal[True, False] = False,
+    logger: Optional[logging.Logger] = None,
 ) -> AsyncGenerator[Union[str, FunctionCall], None]:
     sentence_endings_pattern = "|".join(map(re.escape, sentence_endings))
     list_item_ending_pattern = r"\n"
@@ -39,7 +42,11 @@ async def collate_response_async(
     async for token in gen:
         if not token:
             continue
+        logger.warning(
+            f"Token type: {json.dumps(token, skipkeys=True, sort_keys=True, indent=4)}"
+        )
         if isinstance(token, str):
+            logger.debug(f"Received token: {token}")
             if prev_ends_with_money and token.startswith(" "):
                 yield buffer.strip()
                 buffer = ""
@@ -62,6 +69,10 @@ async def collate_response_async(
         elif isinstance(token, FunctionFragment):
             function_name_buffer += token.name
             function_args_buffer += token.arguments
+        else:
+            logger.warning(
+                f"Received unknown token type: {json.dumps(token, skipkeys=True, sort_keys=True, indent=4)}"
+            )
     to_return = buffer.strip()
     if to_return:
         yield to_return
@@ -69,8 +80,13 @@ async def collate_response_async(
         yield FunctionCall(name=function_name_buffer, arguments=function_args_buffer)
 
 
-async def openai_get_tokens(gen) -> AsyncGenerator[Union[str, FunctionFragment], None]:
+async def openai_get_tokens(
+    gen, logger: Optional[logging.Logger] = None
+) -> AsyncGenerator[Union[str, FunctionFragment], None]:
     async for event in gen:
+        logger.debug(
+            f"Received event: {json.dumps(event, skipkeys=True, sort_keys=True, indent=4)}"
+        )
         choices = event.get("choices", [])
         if len(choices) == 0:
             break
@@ -80,9 +96,11 @@ async def openai_get_tokens(gen) -> AsyncGenerator[Union[str, FunctionFragment],
         delta = choice.get("delta", {})
         if "text" in delta and delta["text"] is not None:
             token = delta["text"]
+            logger.debug(f"Received text token: {token}")
             yield token
         if "content" in delta and delta["content"] is not None:
             token = delta["content"]
+            logger.debug(f"Received content token: {token}")
             yield token
         elif "function_call" in delta and delta["function_call"] is not None:
             yield FunctionFragment(

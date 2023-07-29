@@ -28,6 +28,7 @@ class SpellerAgentFactory(AgentFactory):
     def create_agent(
         self, agent_config: AgentConfig, logger: Optional[logging.Logger] = None
     ) -> BaseAgent:
+        print("agent_config.type", agent_config.type)
         if agent_config.type == AgentType.CHAT_GPT:
             return ChatGPTAgent(
                 agent_config=typing.cast(ChatGPTAgentConfig, agent_config)
